@@ -2,6 +2,7 @@
 using MathNet.Numerics.Interpolation;
 using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.LinearRegression;
+using System.Xml;
 
 namespace Termometry
 {
@@ -10,13 +11,33 @@ namespace Termometry
         public static void Main(string[] args)
         {
 
-            var OrganTest = new TermSampleOrganisation("1", "1488", new DateOnly(2020, 1, 24), new DateOnly(2020, 1, 24));
-            var CalcTest = new TermSampleCalcParameters(OrganTest, -5.2f, 15f, 10f, 5f, -41f, 15f, TypeAnomaly.Normaly);
+            var Config = new ConfigParameters(.5);
 
-            var test = new TermSample(OrganTest, CalcTest);
+            var OrganTestNormal = new TermSampleOrganisation("1", "1488", new DateOnly(2020, 1, 24), new DateOnly(2020, 1, 24));
+            var CalcTestNormal = new TermSampleCalcParameters(OrganTestNormal, Config, -5.2f, 15f, 10f, 5f, -41f, 15f, TypeAnomaly.Normaly, 1f, 2.5f, 4.1f);
+            
+            var OrganTestThawed = new TermSampleOrganisation("1", "1488", new DateOnly(2020, 1, 24), new DateOnly(2020, 1, 24));
+            var CalcTestThawed = new TermSampleCalcParameters(OrganTestThawed, Config, -5.2f, 15f, 10f, -8f, -41f, 15f, TypeAnomaly.Thawed, 1f, 2.5f, 4.1f);
+
+            var OrganTestFrozen = new TermSampleOrganisation("1", "1488", new DateOnly(2020, 5, 24), new DateOnly(2020, 5, 24));
+            var CalcTestFrozen = new TermSampleCalcParameters(OrganTestFrozen, Config, -5.2f, 15f, 10f, 10f, -41f, 15f, TypeAnomaly.Frozen, 1f, 2.5f, -4.1f);
+
+
+
+            var test = new TermSample(OrganTestNormal, CalcTestNormal);
             ScottPlot.Plot myPlot = new();
-            myPlot.Add.Scatter(CalcTest.Depths.ToArray(), CalcTest.Temperatures.ToArray());
-            myPlot.SavePng("quickstart.png", 400, 300);
+            myPlot.Add.Scatter(CalcTestNormal.Depths.ToArray(), CalcTestNormal.Temperatures.ToArray());
+            myPlot.SavePng("Normal.png", 400, 300);
+
+            var testThawed = new TermSample(OrganTestThawed, CalcTestThawed);
+            ScottPlot.Plot myPlotThawed = new();
+            myPlotThawed.Add.Scatter(CalcTestThawed.Depths.ToArray(), CalcTestThawed.Temperatures.ToArray());
+            myPlotThawed.SavePng("Thawed.png", 400, 300);
+
+            var testFrozen = new TermSample(OrganTestFrozen, CalcTestFrozen);
+            ScottPlot.Plot myPlotFrozen = new();
+            myPlotFrozen.Add.Scatter(CalcTestFrozen.Depths.ToArray(), CalcTestFrozen.Temperatures.ToArray());
+            myPlotFrozen.SavePng("Frozen.png", 400, 300);
         }
     }
 
@@ -39,6 +60,17 @@ namespace Termometry
         {
             this.OrganisationParameters = OrganisationParameters;
             this.CalcParameters = CalcParameters;
+        }
+    }
+
+    public class ConfigParameters
+    {
+        // Шум для рандомности данных
+        public double NoisePercents;
+
+        public ConfigParameters(double NoisePercents)
+        {
+            this.NoisePercents = NoisePercents;
         }
     }
 
@@ -80,6 +112,9 @@ namespace Termometry
 
     public class TermSampleCalcParameters
     {
+        // Конфиг
+        private ConfigParameters Config;
+
         // Максимальная температура (необходим расчет относительно даты)
         public double MaxTemperature;
         // Глубина максимальной температуры (необходим расчет относительно даты)
@@ -119,14 +154,15 @@ namespace Termometry
 
         private TermCircle Circle;
 
-        public TermSampleCalcParameters(TermSampleOrganisation OrganisationParameters, double TemperatureStabilization,
-                          double MaxDepthBoreHole,
+        public TermSampleCalcParameters(TermSampleOrganisation OrganisationParameters, ConfigParameters Config, 
+                          double TemperatureStabilization, double MaxDepthBoreHole,
                           double DepthStabilization, double AirTemperature,
                           double TemperatureJanuary, double TemperatureJune,
                           TypeAnomaly TypeAnomaly, double StartDepthAnomaly = 0f,
                           double EndDepthAnomaly = 0f, double TemperatureAnomaly = 0f)
         {
             this.OrganisationParameters = OrganisationParameters;
+            this.Config = Config;
 
             this.MaxDepthBoreHole = MaxDepthBoreHole;
             this.TemperatureStabilization = TemperatureStabilization;
@@ -149,7 +185,7 @@ namespace Termometry
             // Провермяем на аномалии и меняем максимальную температуру, если они есть
             int IndexMaxDepth = (Anomaly == TypeAnomaly.Frozen || Anomaly == TypeAnomaly.Thawed) ? Depths.IndexOf(EndDepthAnomaly) + 1 : new Random().Next(1, 5);
             this.DepthMaxTemp = Depths[IndexMaxDepth];
-            this.MaxTemperature = (Anomaly == TypeAnomaly.Frozen || Anomaly == TypeAnomaly.Thawed) ? CalcMaxTemperature(Depths[IndexMaxDepth], MaxTemperature) : MaxTemperature;
+            // this.MaxTemperature = (Anomaly == TypeAnomaly.Frozen || Anomaly == TypeAnomaly.Thawed) ? CalcMaxTemperature(Depths[IndexMaxDepth - 1], MaxTemperature) : MaxTemperature;
 
             // Получить опорные точки глубин и температур
             this.ControlTemperatures = CalcControlTemp();
@@ -199,10 +235,16 @@ namespace Termometry
         /// <returns></returns>
         private double CalcMaxTemperature(double NormallyDepth, double MaxTemp)
         {
+            throw new System.Exception("Not work!");
+            // Не работает 
+            // Не работает 
+            // Не работает 
+            // Не работает 
+            // Не работает 
             double[] x = new double[] { MaxTemp, TemperatureStabilization };
             double[] y = new double[] { DepthMaxTemp, DepthStabilization };
 
-            var Regress = SimpleRegression.Fit(x, y);
+            var Regress = SimpleRegression.Fit(y, x);
             return Regress.A * NormallyDepth + Regress.B;
         }
 
@@ -219,7 +261,10 @@ namespace Termometry
                 case TypeAnomaly.Normaly:
                     CalcDepth = new List<double>() { 0f, DepthMaxTemp, (DepthMaxTemp + DepthStabilization) / 2f, DepthStabilization, MaxDepthBoreHole };
                     break;
-                case TypeAnomaly.Frozen | TypeAnomaly.Thawed:
+                case TypeAnomaly.Thawed:
+                    CalcDepth = new List<double>() { 0f, StartDepthAnomaly, (StartDepthAnomaly + EndDepthAnomaly) / 2f, EndDepthAnomaly, DepthMaxTemp, (DepthMaxTemp + DepthStabilization) / 2f, DepthStabilization, MaxDepthBoreHole };
+                    break;
+                case TypeAnomaly.Frozen:
                     CalcDepth = new List<double>() { 0f, StartDepthAnomaly, (StartDepthAnomaly + EndDepthAnomaly) / 2f, EndDepthAnomaly, DepthMaxTemp, (DepthMaxTemp + DepthStabilization) / 2f, DepthStabilization, MaxDepthBoreHole };
                     break;
                 default:
@@ -241,7 +286,10 @@ namespace Termometry
                 case TypeAnomaly.Normaly:
                     CalcTemp = new List<double>() { AirTemperature, MaxTemperature, (MaxTemperature + TemperatureStabilization) / 2f, TemperatureStabilization, TemperatureStabilization };
                     break;
-                case TypeAnomaly.Frozen | TypeAnomaly.Thawed:
+                case TypeAnomaly.Thawed:
+                    CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f, MaxTemperature, (MaxTemperature + TemperatureStabilization) / 2f, TemperatureStabilization, TemperatureStabilization };
+                    break;
+                case TypeAnomaly.Frozen:
                     CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f, MaxTemperature, (MaxTemperature + TemperatureStabilization) / 2f, TemperatureStabilization, TemperatureStabilization };
                     break;
                 default:
@@ -258,17 +306,15 @@ namespace Termometry
         {
             IInterpolation InterpData = Interpolate.CubicSplineMonotone(ControlDepths, ControlTemperatures);
 
-            var x = new DenseVector(50);
+            var x = new DenseVector(Depths.Count);
             var y = new DenseVector(x.Count);
 
             for (int i = 0; i < x.Count; i++)
             {
                 x[i] = ((double)ControlDepths[^1] * (double)i) / (double)(x.Count - 1);
-                y[i] = InterpData.Interpolate(x[i]);
+                y[i] = InterpData.Interpolate(x[i]) * (double)(1f - new Random().Next((int)-Config.NoisePercents * 100, (int)Config.NoisePercents * 100) / 100f);
             }
-            var testc = y.ToList();
-
-            return testc;
+            return y.ToList();
         }
     }
 
@@ -329,20 +375,6 @@ namespace Termometry
             double R_X = 6f;
 
             MaxTemperatures = Angles.Select(x => Y_0 + R_Y * Math.Sin(x * Math.PI / 180f)).ToList();
-
-            /*
-            IInterpolation InterpData = Interpolate.CubicSplineMonotone(Angles, MaxTemperatures);
-
-            var x = new DenseVector(CountDays);
-            var y = new DenseVector(x.Count);
-
-            for (int i = 0; i < x.Count; i++)
-            {
-                x[i] = (180f * (double)i) / (double)(x.Count - 1);
-                y[i] = InterpData.Interpolate(x[i]);
-            }
-            MaxTemperatures = x.ToList();
-            */
         }
     }
 }
