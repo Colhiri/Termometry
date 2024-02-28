@@ -1,8 +1,6 @@
-﻿using MathNet.Numerics;
-using MathNet.Numerics.Interpolation;
-using MathNet.Numerics.LinearAlgebra.Double;
-using MathNet.Numerics.LinearRegression;
-using System.Xml;
+﻿using OfficeOpenXml;
+using OfficeOpenXml.Export.ToDataTable;
+using System.Data;
 
 namespace Termometry
 {
@@ -10,42 +8,51 @@ namespace Termometry
     {
         public static void Main(string[] args)
         {
+            try
+            {
+                var Config = new ConfigParameters(NoisePercents: 4, pathToData: @"term.xlsm", doImages: true);
 
-            var Config = new ConfigParameters(.5);
+                ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
-            var OrganTestNormal = new TermSampleOrganisation("1", "1488", new DateOnly(2020, 1, 24), new DateOnly(2020, 1, 24));
-            var CalcTestNormal = new TermSampleCalcParameters(OrganTestNormal, Config, -5.2f, 15f, 10f, 5f, -41f, 15f, TypeAnomaly.Normaly, 1f, 2.5f, 4.1f);
-            
-            var OrganTestThawed = new TermSampleOrganisation("1", "1488", new DateOnly(2020, 1, 24), new DateOnly(2020, 1, 24));
-            var CalcTestThawed = new TermSampleCalcParameters(OrganTestThawed, Config, -5.2f, 15f, 10f, -8f, -41f, 15f, TypeAnomaly.Thawed, 1f, 2.5f, 4.1f);
+                var options = ToDataTableOptions.Create();
+                options.EmptyRowStrategy = EmptyRowsStrategy.Ignore;
+                options.AlwaysAllowNull = true;
 
-            var OrganTestFrozen = new TermSampleOrganisation("1", "1488", new DateOnly(2020, 5, 24), new DateOnly(2020, 5, 24));
-            var CalcTestFrozen = new TermSampleCalcParameters(OrganTestFrozen, Config, -5.2f, 15f, 10f, 10f, -41f, 15f, TypeAnomaly.Frozen, 1f, 2.5f, -4.1f);
+                DataTable datatable;
+                List<string> Headers = new List<string>();
+                using (var package = new ExcelPackage(path: Config.PathToData))
+                {
+                    var sheet = package.Workbook.Worksheets["List"];
+                    datatable = sheet.Cells[$"A1:P2000"].ToDataTable(options);
+                    foreach (DataColumn c in datatable.Columns)
+                    {
+                        Headers.Add(c.ColumnName);
+                    }
+                }
 
+                // Если файл есть удаляем его и создае новый через копирования основного
+                if (File.Exists(@"Done.xlsm")) File.Delete(@"Done.xlsm");
+                File.Copy(@"term.xlsm", @"Done.xlsm");
 
+                using (var package = new ExcelPackage(@"Done.xlsm"))
+                {
+                    foreach (DataRow r in datatable.Rows)
+                    {
+                        var Data = new ExcelRowData(Headers, r);
+                        var Term = new TermSample(Data, Config);
+                        var exc = new ExcelCreateTermList(package, Term.OrganisationParameters, Term.GetDepths(), Term.GetTemps());
+                        Console.WriteLine($"{Term.OrganisationParameters.NameBoreHole} -- is complete.");
+                    }
+                }
 
-            var test = new TermSample(OrganTestNormal, CalcTestNormal);
-            ScottPlot.Plot myPlot = new();
-            myPlot.Add.Scatter(CalcTestNormal.Depths.ToArray(), CalcTestNormal.Temperatures.ToArray());
-            myPlot.SavePng("Normal.png", 400, 300);
-
-            var testThawed = new TermSample(OrganTestThawed, CalcTestThawed);
-            ScottPlot.Plot myPlotThawed = new();
-            myPlotThawed.Add.Scatter(CalcTestThawed.Depths.ToArray(), CalcTestThawed.Temperatures.ToArray());
-            myPlotThawed.SavePng("Thawed.png", 400, 300);
-
-            var testFrozen = new TermSample(OrganTestFrozen, CalcTestFrozen);
-            ScottPlot.Plot myPlotFrozen = new();
-            myPlotFrozen.Add.Scatter(CalcTestFrozen.Depths.ToArray(), CalcTestFrozen.Temperatures.ToArray());
-            myPlotFrozen.SavePng("Frozen.png", 400, 300);
+                Console.WriteLine("Done");
+                Console.ReadLine();
+            }
+            catch (Exception ex) 
+            {
+                Console.WriteLine(ex.Message);
+            }
         }
-    }
-
-    public enum TypeAnomaly
-    {
-        Frozen,
-        Thawed,
-        Normaly
     }
 
     // Скважина
@@ -54,327 +61,24 @@ namespace Termometry
         // Организационные параметры скважины
         public TermSampleOrganisation OrganisationParameters;
         // Расчетные параметры скважины
-        public TermSampleCalcParameters CalcParameters;
+        private TermSampleCalcParameters CalcParameters;
 
-        public TermSample(TermSampleOrganisation OrganisationParameters, TermSampleCalcParameters CalcParameters)
+        // Получить глубины
+        public List<double> GetDepths() => CalcParameters.Depths;
+        // Получить температуры
+        public List<double> GetTemps() => CalcParameters.Temperatures;
+
+        public TermSample(ExcelRowData data, ConfigParameters config)
         {
-            this.OrganisationParameters = OrganisationParameters;
-            this.CalcParameters = CalcParameters;
-        }
-    }
-
-    public class ConfigParameters
-    {
-        // Шум для рандомности данных
-        public double NoisePercents;
-
-        public ConfigParameters(double NoisePercents)
-        {
-            this.NoisePercents = NoisePercents;
-        }
-    }
-
-    /// <summary>
-    /// Организационные параметры скважины
-    /// </summary>
-    public class TermSampleOrganisation
-    {
-        // Имя скважины
-        public string NameBoreHole;
-        // Термокоса
-        public string TermoCosa;
-
-        public int Mouth;
-        public int Day;
-        public int Year;
-        public int DayOfYear;
-        public int CountDays;
-
-        // Дата бурения
-        private DateOnly DateBoreHole;
-        // Дата замера термометрии
-        private DateOnly DateTermometry;
-
-        public TermSampleOrganisation(string NameBoreHole, string TermoCosa, DateOnly DateBoreHole, DateOnly DateTermometry)
-        {
-            this.NameBoreHole = NameBoreHole;
-            this.TermoCosa = TermoCosa;
-            this.DateBoreHole = DateBoreHole;
-            this.DateTermometry = DateTermometry;
-
-            Mouth = DateTermometry.Month;
-            Day = DateTermometry.Day;
-            Year = DateTermometry.Year;
-            DayOfYear = DateTermometry.DayOfYear;
-            CountDays = DateTime.IsLeapYear(Year) ? 366 : 365;
-        }
-    }
-
-    public class TermSampleCalcParameters
-    {
-        // Конфиг
-        private ConfigParameters Config;
-
-        // Максимальная температура (необходим расчет относительно даты)
-        public double MaxTemperature;
-        // Глубина максимальной температуры (необходим расчет относительно даты)
-        public double DepthMaxTemp;
-        // Глубина скважины
-        public double MaxDepthBoreHole;
-        // Температура стабилизации
-        public double TemperatureStabilization;
-        // Глубина стабилизации температуры
-        public double DepthStabilization;
-        // Температура на поверхности
-        public double AirTemperature;
-        // Тип аномалии (Обычный график, есть талая часть, есть мерзлая часть)
-        public TypeAnomaly Anomaly;
-        // Если есть аномалия, задать старт аномалии
-        public double StartDepthAnomaly;
-        // Если есть аномалия, задать конец аномалии
-        public double EndDepthAnomaly;
-        // Если есть аномалия, задать температуру аномалии
-        public double TemperatureAnomaly;
-        // Температуры в Январе (начало круга)
-        public double TemperatureJanuary;
-        // Температуры в Июне (середина круга)
-        public double TemperatureJune;
-
-        // Лист опорных температур
-        public List<double> ControlTemperatures;
-        // Лист опорных глубин
-        public List<double> ControlDepths;
-        
-        // Лист всех глубин графика
-        public List<double> Depths;
-        // Лист всех температур графика
-        public List<double> Temperatures;
-
-        private TermSampleOrganisation OrganisationParameters;
-
-        private TermCircle Circle;
-
-        public TermSampleCalcParameters(TermSampleOrganisation OrganisationParameters, ConfigParameters Config, 
-                          double TemperatureStabilization, double MaxDepthBoreHole,
-                          double DepthStabilization, double AirTemperature,
-                          double TemperatureJanuary, double TemperatureJune,
-                          TypeAnomaly TypeAnomaly, double StartDepthAnomaly = 0f,
-                          double EndDepthAnomaly = 0f, double TemperatureAnomaly = 0f)
-        {
-            this.OrganisationParameters = OrganisationParameters;
-            this.Config = Config;
-
-            this.MaxDepthBoreHole = MaxDepthBoreHole;
-            this.TemperatureStabilization = TemperatureStabilization;
-            this.DepthStabilization = DepthStabilization;
-            this.AirTemperature = AirTemperature;
-            this.Anomaly = TypeAnomaly;
-            this.StartDepthAnomaly = StartDepthAnomaly;
-            this.EndDepthAnomaly = EndDepthAnomaly;
-            this.TemperatureAnomaly = TemperatureAnomaly;
-
-            this.TemperatureJanuary = TemperatureJanuary;
-            this.TemperatureJune = TemperatureJune;
-
-            // Получить график глубин
-            this.Depths = CalcDepths();
-
-            // Ищем максимальную температуру
-            this.Circle = new TermCircle(OrganisationParameters.CountDays, TemperatureJanuary, TemperatureJune);
-            this.MaxTemperature = Circle.MaxTerm(OrganisationParameters.DayOfYear);
-            // Провермяем на аномалии и меняем максимальную температуру, если они есть
-            int IndexMaxDepth = (Anomaly == TypeAnomaly.Frozen || Anomaly == TypeAnomaly.Thawed) ? Depths.IndexOf(EndDepthAnomaly) + 1 : new Random().Next(1, 5);
-            this.DepthMaxTemp = Depths[IndexMaxDepth];
-            // this.MaxTemperature = (Anomaly == TypeAnomaly.Frozen || Anomaly == TypeAnomaly.Thawed) ? CalcMaxTemperature(Depths[IndexMaxDepth - 1], MaxTemperature) : MaxTemperature;
-
-            // Получить опорные точки глубин и температур
-            this.ControlTemperatures = CalcControlTemp();
-            this.ControlDepths = CalcControlDepth();
-
-            // Получить график температур
-            this.Temperatures = CalcTemperatures();
-        }
-
-        /// <summary>
-        /// Посчитать глубины графика
-        /// </summary>
-        /// <returns></returns>
-        private List<double> CalcDepths()
-        {
-            List<double> CalcDepthsList = new List<double>() { };
-
-            double CurrentDepth = 0;
-
-            double Multiple = 0.5f;
-
-            while (CurrentDepth <= MaxDepthBoreHole+2)
-            {
-                if (CurrentDepth + 0.5f > MaxDepthBoreHole)
-                {
-                    if (CurrentDepth != MaxDepthBoreHole) CalcDepthsList.Add(MaxDepthBoreHole);
-                    break;
-                }
-                else
-                {
-                    CalcDepthsList.Add(CurrentDepth);
-                }
-                if (CurrentDepth < 5) Multiple = 0.5f;
-                if (CurrentDepth >= 5 && CurrentDepth < 10) Multiple = 1.0f;
-                if (CurrentDepth >= 10) Multiple = 2.0f;
-
-                CurrentDepth += Multiple;
-            }
-            return CalcDepthsList;
-        }
-
-        /// <summary>
-        /// Если есть аномалия, посчитать нижележащую максимальную температуру
-        /// </summary>
-        /// <param name="NormallyDepth"></param>
-        /// <param name="MaxTemp"></param>
-        /// <returns></returns>
-        private double CalcMaxTemperature(double NormallyDepth, double MaxTemp)
-        {
-            throw new System.Exception("Not work!");
-            // Не работает 
-            // Не работает 
-            // Не работает 
-            // Не работает 
-            // Не работает 
-            double[] x = new double[] { MaxTemp, TemperatureStabilization };
-            double[] y = new double[] { DepthMaxTemp, DepthStabilization };
-
-            var Regress = SimpleRegression.Fit(y, x);
-            return Regress.A * NormallyDepth + Regress.B;
-        }
-
-        /// <summary>
-        /// Контрольные точки глубины
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        private List<double> CalcControlDepth()
-        {
-            List<double> CalcDepth = null;
-            switch (Anomaly)
-            {
-                case TypeAnomaly.Normaly:
-                    CalcDepth = new List<double>() { 0f, DepthMaxTemp, (DepthMaxTemp + DepthStabilization) / 2f, DepthStabilization, MaxDepthBoreHole };
-                    break;
-                case TypeAnomaly.Thawed:
-                    CalcDepth = new List<double>() { 0f, StartDepthAnomaly, (StartDepthAnomaly + EndDepthAnomaly) / 2f, EndDepthAnomaly, DepthMaxTemp, (DepthMaxTemp + DepthStabilization) / 2f, DepthStabilization, MaxDepthBoreHole };
-                    break;
-                case TypeAnomaly.Frozen:
-                    CalcDepth = new List<double>() { 0f, StartDepthAnomaly, (StartDepthAnomaly + EndDepthAnomaly) / 2f, EndDepthAnomaly, DepthMaxTemp, (DepthMaxTemp + DepthStabilization) / 2f, DepthStabilization, MaxDepthBoreHole };
-                    break;
-                default:
-                    throw new Exception("Не задан тип графика!");
-            }
-            return CalcDepth;
-        }
-
-        /// <summary>
-        /// Контрольные точки температуры
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="Exception"></exception>
-        private List<double> CalcControlTemp()
-        {
-            List<double> CalcTemp = null;
-            switch (Anomaly)
-            {
-                case TypeAnomaly.Normaly:
-                    CalcTemp = new List<double>() { AirTemperature, MaxTemperature, (MaxTemperature + TemperatureStabilization) / 2f, TemperatureStabilization, TemperatureStabilization };
-                    break;
-                case TypeAnomaly.Thawed:
-                    CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f, MaxTemperature, (MaxTemperature + TemperatureStabilization) / 2f, TemperatureStabilization, TemperatureStabilization };
-                    break;
-                case TypeAnomaly.Frozen:
-                    CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f, MaxTemperature, (MaxTemperature + TemperatureStabilization) / 2f, TemperatureStabilization, TemperatureStabilization };
-                    break;
-                default:
-                    throw new Exception("Не задан тип графика!");
-            }
-            return CalcTemp;
-        }
-
-        /// <summary>
-        /// Рассчитать температуры
-        /// </summary>
-        /// <returns></returns>
-        private List<double> CalcTemperatures()
-        {
-            IInterpolation InterpData = Interpolate.CubicSplineMonotone(ControlDepths, ControlTemperatures);
-
-            var x = new DenseVector(Depths.Count);
-            var y = new DenseVector(x.Count);
-
-            for (int i = 0; i < x.Count; i++)
-            {
-                x[i] = ((double)ControlDepths[^1] * (double)i) / (double)(x.Count - 1);
-                y[i] = InterpData.Interpolate(x[i]) * (double)(1f - new Random().Next((int)-Config.NoisePercents * 100, (int)Config.NoisePercents * 100) / 100f);
-            }
-            return y.ToList();
-        }
-    }
-
-    /// <summary>
-    /// Создать круг максимальных температур для всех дней в году
-    /// </summary>
-    public class TermCircle
-    {
-        // Углы (от 0 до 180)
-        private List<double> Angles;
-        // Максимальный отскок температуры в году
-        private List<double> MaxTemperatures;
-        // КОличество дней в году
-        private int CountDays;
-        // Температура января
-        private double TemperatureJanuary;
-        // Температура июня
-        private double TemperatureJune;
-        // Получить максимальную температуру дня
-        public double MaxTerm(int day) => MaxTemperatures[day];
-
-        public TermCircle(int CountDays, double TemperatureJanuary, double TemperatureJune)
-        {
-            this.CountDays = CountDays;
-            this.TemperatureJanuary = TemperatureJanuary;
-            this.TemperatureJune = TemperatureJune;
-
-            // Получаем углы
-            Angles = new List<double>();
-            FillAngles(ref Angles);
-            // Получаем температуры
-            MaxTemperatures = new List<double>();
-            FillMaxTemperatures(ref MaxTemperatures);
-        }
-
-        /// <summary>
-        /// Заполнение углов с заданным шагом до 180 градусов
-        /// </summary>
-        /// <param name="Angles"></param>
-        private void FillAngles(ref List<double> Angles)
-        {
-            for (int i = 0; i < CountDays; i++)
-            {
-                Angles.Add((180f / (float)CountDays) * i);
-            }
-        }
-
-        /// <summary>
-        /// Заполнение максимальных отскоков температур в каждом месяце
-        /// </summary>
-        /// <param name="MaxTemperatures"></param>
-        private void FillMaxTemperatures(ref List<double> MaxTemperatures)
-        {
-            double Y_0 = TemperatureJanuary;
-            double R_Y = Math.Abs(TemperatureJanuary) + Math.Abs(TemperatureJune);
-
-            double X_0 = 6f;
-            double R_X = 6f;
-
-            MaxTemperatures = Angles.Select(x => Y_0 + R_Y * Math.Sin(x * Math.PI / 180f)).ToList();
+            OrganisationParameters = new TermSampleOrganisation(NameBoreHole: data.NameBoreHole, ObjectName: data.ObjectName,
+                TermoCosa: data.TermoCosa, 
+                DateBoreHole: data.DateBoreHole, DateTermometry: data.DateTermometry, AirTemperature: data.AirTemperature);
+            CalcParameters = new TermSampleCalcParameters(OrganisationParameters: OrganisationParameters, Config: config, 
+                TemperatureStabilization: data.TemperatureStabilization, MaxDepthBoreHole: data.MaxDepthBoreHole, 
+                DepthStabilization: data.DepthStabilization, AirTemperature: data.AirTemperature, 
+                TemperatureJanuary: data.TemperatureJanuary, TemperatureJune: data.TemperatureJune, 
+                TypeAnomaly: data.Anomaly, StartDepthAnomaly: data.StartDepthAnomaly, 
+                EndDepthAnomaly: data.EndDepthAnomaly, TemperatureAnomaly: data.TemperatureAnomaly);
         }
     }
 }
