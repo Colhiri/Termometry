@@ -1,6 +1,7 @@
 ﻿using OfficeOpenXml;
 using OfficeOpenXml.Export.ToDataTable;
 using System.Data;
+using System.Diagnostics;
 
 namespace Termometry
 {
@@ -8,18 +9,20 @@ namespace Termometry
     {
         public static void Main(string[] args)
         {
+            // Загрузка конфига, если его нет, он создается с уведомлением
+            var Config = new ConfigParameters();
+            Config = Config.GetConfig();
+
+            // Создание Таблицы с пропуском пустых строк и разрешением пустых значений
+            ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+            var options = ToDataTableOptions.Create();
+            options.EmptyRowStrategy = EmptyRowsStrategy.Ignore;
+            options.AlwaysAllowNull = true;
+            // Загрузка данных в таблицу
+            DataTable datatable;
+            List<string> Headers = new List<string>();
             try
             {
-                var Config = new ConfigParameters(NoisePercents: 4, pathToData: @"term.xlsm", doImages: true);
-
-                ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-
-                var options = ToDataTableOptions.Create();
-                options.EmptyRowStrategy = EmptyRowsStrategy.Ignore;
-                options.AlwaysAllowNull = true;
-
-                DataTable datatable;
-                List<string> Headers = new List<string>();
                 using (var package = new ExcelPackage(path: Config.PathToData))
                 {
                     var sheet = package.Workbook.Worksheets["List"];
@@ -30,27 +33,35 @@ namespace Termometry
                     }
                 }
 
-                // Если файл есть удаляем его и создае новый через копирования основного
+                // Если файл есть удаляем его и создает новый через копирования основного
                 if (File.Exists(@"Done.xlsm")) File.Delete(@"Done.xlsm");
-                File.Copy(@"term.xlsm", @"Done.xlsm");
+                File.Copy(Config.PathToData, @"Done.xlsm");
 
                 using (var package = new ExcelPackage(@"Done.xlsm"))
                 {
                     foreach (DataRow r in datatable.Rows)
                     {
+                        // Расчеты (не влияют совсем, времся запись линейно возрастает)
                         var Data = new ExcelRowData(Headers, r);
                         var Term = new TermSample(Data, Config);
+
+                        // Запись в эксель
                         var exc = new ExcelCreateTermList(package, Term.OrganisationParameters, Term.GetDepths(), Term.GetTemps());
+
                         Console.WriteLine($"{Term.OrganisationParameters.NameBoreHole} -- is complete.");
                     }
+                    package.Save();
+                    Thread.Sleep(100);
+                    Console.WriteLine("\nВыполнено");
                 }
-
-                Console.WriteLine("Done");
-                Console.ReadLine();
             }
-            catch (Exception ex) 
+            catch (FileNotFoundException ex) 
             {
-                Console.WriteLine(ex.Message);
+                Console.WriteLine($"Файл с данными для загрузки не найден. Укажите путь к файлу в конфигурационном файле.");
+            }
+            finally
+            {
+                Console.ReadLine();
             }
         }
     }

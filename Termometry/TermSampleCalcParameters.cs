@@ -39,7 +39,13 @@ namespace Termometry
         public List<double> ControlTemperatures;
         // Лист опорных глубин
         public List<double> ControlDepths;
-        
+
+        // Разброс для температур
+        private double RandomTempMin = -.5;
+        private double RandomTempMax = .5;
+        // Проценты или цифры
+        private bool Percents;
+
         // Лист всех глубин графика
         public List<double> Depths;
         // Лист всех температур графика
@@ -58,6 +64,12 @@ namespace Termometry
         {
             this.OrganisationParameters = OrganisationParameters;
             this.Config = Config;
+
+            // Загрузка данных с конфига
+            Percents = Config.Percents;
+            RandomTempMin = Config.RandomTempMin;
+            RandomTempMax = Config.RandomTempMax;
+
 
             this.MaxDepthBoreHole = MaxDepthBoreHole;
             this.TemperatureStabilization = TemperatureStabilization;
@@ -98,7 +110,7 @@ namespace Termometry
         {
             List<double> CalcDepthsList = new List<double>() { };
 
-            double CurrentDepth = 0;
+            double CurrentDepth = 0f;
 
             double Multiple = 0.5f;
 
@@ -113,9 +125,9 @@ namespace Termometry
                 {
                     CalcDepthsList.Add(CurrentDepth);
                 }
-                if (CurrentDepth < 5) Multiple = 0.5f;
-                if (CurrentDepth >= 5 && CurrentDepth < 10) Multiple = 1.0f;
-                if (CurrentDepth >= 10) Multiple = 2.0f;
+                if (CurrentDepth < 5f) Multiple = 0.5f;
+                if (CurrentDepth >= 5f && CurrentDepth < 10f) Multiple = 1.0f;
+                if (CurrentDepth >= 10f) Multiple = 2.0f;
 
                 CurrentDepth += Multiple;
             }
@@ -154,10 +166,44 @@ namespace Termometry
             switch (Anomaly)
             {
                 case TypeAnomaly.Normaly:
-                    CalcDepth = new List<double>() { 0f, DepthMaxTemp, (DepthMaxTemp + DepthStabilization) / 2f, DepthStabilization, MaxDepthBoreHole };
+                    if (DepthMaxTemp > DepthStabilization)
+                    {
+                        CalcDepth = new List<double>() { 0f, 
+                            DepthMaxTemp, 
+                            ((DepthMaxTemp + DepthStabilization) / 2f) * (double)(new Random().Next(90, 110)) / 100f,
+                            DepthStabilization * (double)(new Random().Next(90, 110)) / 100f, 
+                            MaxDepthBoreHole };
+                    }
+                    else
+                    {
+                        CalcDepth = new List<double>() { 0f, 
+                            DepthMaxTemp, 
+                            ((DepthMaxTemp + DepthStabilization) / 2f) * (double)(new Random().Next(90, 110)) / 100f, 
+                            DepthStabilization };
+                    }
                     break;
                 case TypeAnomaly.Anomaly:
-                    CalcDepth = new List<double>() { 0f, StartDepthAnomaly, (StartDepthAnomaly + EndDepthAnomaly) / 2f, EndDepthAnomaly, DepthMaxTemp, (DepthMaxTemp + DepthStabilization) / 2f, DepthStabilization, MaxDepthBoreHole };
+                    if (DepthMaxTemp > DepthStabilization)
+                    {
+                        CalcDepth = new List<double>() { 0f, 
+                            StartDepthAnomaly,
+                            ((StartDepthAnomaly + EndDepthAnomaly) / 2f),
+                            EndDepthAnomaly, 
+                            DepthMaxTemp, 
+                            ((DepthMaxTemp + DepthStabilization) / 2f) * (double)(new Random().Next(90, 110)) / 100f,
+                            DepthStabilization * (double)(new Random().Next(90, 110)) / 100f, 
+                            MaxDepthBoreHole };
+                    }
+                    else
+                    {
+                        CalcDepth = new List<double>() { 0f, 
+                            StartDepthAnomaly, 
+                            ((StartDepthAnomaly + EndDepthAnomaly) / 2f), 
+                            EndDepthAnomaly, 
+                            DepthMaxTemp, 
+                            ((DepthMaxTemp + DepthStabilization) / 2f) * (double)(new Random().Next(90, 110)) / 100f, 
+                            DepthStabilization };
+                    }
                     break;
                 default:
                     throw new Exception("Не задан тип графика!");
@@ -176,10 +222,38 @@ namespace Termometry
             switch (Anomaly)
             {
                 case TypeAnomaly.Normaly:
-                    CalcTemp = new List<double>() { AirTemperature, MaxTemperature, (MaxTemperature + TemperatureStabilization) / 2f, TemperatureStabilization, TemperatureStabilization };
+                    if (DepthMaxTemp > DepthStabilization)
+                    {
+                        CalcTemp = new List<double>() { AirTemperature,
+                            MaxTemperature * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f, 
+                            ((MaxTemperature + TemperatureStabilization) / 2f) * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                            TemperatureStabilization, 
+                            TemperatureStabilization };
+                    }
+                    else
+                    {
+                        CalcTemp = new List<double>() { AirTemperature, 
+                            MaxTemperature * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                            ((MaxTemperature + TemperatureStabilization) / 2f) * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                            TemperatureStabilization };
+                    }
                     break;
                 case TypeAnomaly.Anomaly:
-                    CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f, MaxTemperature, (MaxTemperature + TemperatureStabilization) / 2f, TemperatureStabilization, TemperatureStabilization };
+                    if (DepthMaxTemp > DepthStabilization)
+                    {
+                        CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f,
+                            MaxTemperature * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                            ((MaxTemperature + TemperatureStabilization) / 2f) * (double)(new Random().Next((int)(RandomTempMin * 100),(int)(RandomTempMax * 100))) / 100f, 
+                            TemperatureStabilization, 
+                            TemperatureStabilization };
+                    }
+                    else
+                    {
+                        CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f,
+                            MaxTemperature * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                            ((MaxTemperature + TemperatureStabilization) / 2f) *(double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                            TemperatureStabilization };
+                    }
                     break;
                 default:
                     throw new Exception("Не задан тип графика!");

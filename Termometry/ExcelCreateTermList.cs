@@ -1,4 +1,5 @@
 ﻿using OfficeOpenXml;
+using System.Diagnostics;
 
 namespace Termometry
 {
@@ -36,10 +37,27 @@ namespace Termometry
 
         private void CreateTerm()
         {
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            TimeSpan ts;
+            string ElapsedTime;
+
             CopySheet();
+
+            // sw.Stop();
+            // ts = sw.Elapsed;
+            // ElapsedTime = String.Format("{0:00}:{1:00}.{2:0000}", ts.Minutes, ts.Seconds, ts.Milliseconds);
+            // Console.WriteLine($"Время расчетов: {ElapsedTime}");
+
             WriteOrganisationParameters();
+
+            
+
             WriteCalcParameters();
-            pack.Save();
+
+            
+
         }
 
         private void CopySheet()
@@ -64,7 +82,7 @@ namespace Termometry
             // Запись температуры воздуха
             CurrentWorksheet.Cells["D6"].Value = $"{org.AirTemperature}";
             // Запись Дата бурения (окончания)
-            CurrentWorksheet.Cells["D8"].Value = $"{org.DateBoreHole.ToString("D")}";
+            CurrentWorksheet.Cells["D8"].Value = $"{org.DateBoreHole}";
             // Запись Термокосы
             CurrentWorksheet.Cells["D9"].Value = $"{org.TermoCosa}";
             // Запись Даты термометрии
