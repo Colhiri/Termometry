@@ -8,9 +8,10 @@ namespace Termometry
         public double NoisePercents { get; set; }
         // Путь к сводной
         public string PathToData { get; set; }
+        // Если ложь, то отнимаем от контрольных точек заданные цифры, если истина, то умножаем на проценты в формате д.е.
         public bool Percents { get; set; }
-        public double RandomTempMin;
-        public double RandomTempMax;
+        public double RandomTempMin { get; set; }
+        public double RandomTempMax { get; set; }
 
         private string pathToConfig = $"Config.json";
 
@@ -46,6 +47,10 @@ namespace Termometry
                     Console.WriteLine($"Config load.");
                     this.NoisePercents = conf.NoisePercents;
                     this.PathToData = conf.PathToData;
+                    this.Percents = conf.Percents;
+                    this.RandomTempMin = conf.RandomTempMin;
+                    this.RandomTempMax = conf.RandomTempMax;
+
                 }
             }
 

@@ -41,8 +41,8 @@ namespace Termometry
         public List<double> ControlDepths;
 
         // Разброс для температур
-        private double RandomTempMin = -.5;
-        private double RandomTempMax = .5;
+        private double RandomTempMin;
+        private double RandomTempMax;
         // Проценты или цифры
         private bool Percents;
 
@@ -118,7 +118,7 @@ namespace Termometry
             {
                 if (CurrentDepth + 0.5f > MaxDepthBoreHole)
                 {
-                    if (CurrentDepth != MaxDepthBoreHole) CalcDepthsList.Add(MaxDepthBoreHole);
+                    if (CurrentDepth == MaxDepthBoreHole) CalcDepthsList.Add(MaxDepthBoreHole);
                     break;
                 }
                 else
@@ -166,7 +166,7 @@ namespace Termometry
             switch (Anomaly)
             {
                 case TypeAnomaly.Normaly:
-                    if (DepthMaxTemp > DepthStabilization)
+                    if (MaxDepthBoreHole > DepthStabilization)
                     {
                         CalcDepth = new List<double>() { 0f, 
                             DepthMaxTemp, 
@@ -178,12 +178,12 @@ namespace Termometry
                     {
                         CalcDepth = new List<double>() { 0f, 
                             DepthMaxTemp, 
-                            ((DepthMaxTemp + DepthStabilization) / 2f) * (double)(new Random().Next(90, 110)) / 100f, 
-                            DepthStabilization };
+                            ((DepthMaxTemp + DepthStabilization) / 2f) * (double)(new Random().Next(90, 110)) / 100f,
+                            MaxDepthBoreHole };
                     }
                     break;
                 case TypeAnomaly.Anomaly:
-                    if (DepthMaxTemp > DepthStabilization)
+                    if (MaxDepthBoreHole > DepthStabilization)
                     {
                         CalcDepth = new List<double>() { 0f, 
                             StartDepthAnomaly,
@@ -218,40 +218,40 @@ namespace Termometry
         /// <exception cref="Exception"></exception>
         private List<double> CalcControlTemp()
         {
-            List<double> CalcTemp = null;
+            List<double> CalcTemp;
             switch (Anomaly)
             {
                 case TypeAnomaly.Normaly:
-                    if (DepthMaxTemp > DepthStabilization)
+                    if (MaxDepthBoreHole > DepthStabilization)
                     {
                         CalcTemp = new List<double>() { AirTemperature,
-                            MaxTemperature * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f, 
-                            ((MaxTemperature + TemperatureStabilization) / 2f) * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                            Percents ? MaxTemperature * new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin : MaxTemperature + new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin,
+                            Percents ? ((MaxTemperature + TemperatureStabilization) / 2f) * new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin : ((MaxTemperature + TemperatureStabilization) / 2f) + new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin,
                             TemperatureStabilization, 
                             TemperatureStabilization };
                     }
                     else
                     {
-                        CalcTemp = new List<double>() { AirTemperature, 
-                            MaxTemperature * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
-                            ((MaxTemperature + TemperatureStabilization) / 2f) * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                        CalcTemp = new List<double>() { AirTemperature,
+                            Percents ? MaxTemperature * new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin : MaxTemperature + new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin,
+                            Percents ? ((MaxTemperature + TemperatureStabilization) / 2f) * new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin : ((MaxTemperature + TemperatureStabilization) / 2f) + new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin,
                             TemperatureStabilization };
                     }
                     break;
                 case TypeAnomaly.Anomaly:
-                    if (DepthMaxTemp > DepthStabilization)
+                    if (MaxDepthBoreHole > DepthStabilization)
                     {
                         CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f,
-                            MaxTemperature * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
-                            ((MaxTemperature + TemperatureStabilization) / 2f) * (double)(new Random().Next((int)(RandomTempMin * 100),(int)(RandomTempMax * 100))) / 100f, 
+                            Percents ? MaxTemperature * MaxTemperature * new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin : MaxTemperature + new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin,
+                            Percents ? ((MaxTemperature + TemperatureStabilization) / 2f) * new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin : ((MaxTemperature + TemperatureStabilization) / 2f) + new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin,
                             TemperatureStabilization, 
                             TemperatureStabilization };
                     }
                     else
                     {
                         CalcTemp = new List<double>() { AirTemperature, 0f, TemperatureAnomaly, 0f,
-                            MaxTemperature * (double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
-                            ((MaxTemperature + TemperatureStabilization) / 2f) *(double)(new Random().Next((int)(RandomTempMin * 100), (int)(RandomTempMax * 100))) / 100f,
+                            Percents ? MaxTemperature * MaxTemperature * new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin : MaxTemperature + new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin,
+                            Percents ? ((MaxTemperature + TemperatureStabilization) / 2f) * new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin : ((MaxTemperature + TemperatureStabilization) / 2f) + new Random().NextDouble() * (RandomTempMax - RandomTempMin) + RandomTempMin,
                             TemperatureStabilization };
                     }
                     break;
